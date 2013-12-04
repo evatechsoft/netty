@@ -562,12 +562,7 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
             throw new IndexOutOfBoundsException("Too many bytes to read - Need " + (index + length));
         }
 
-        ByteBuffer dst =
-                src.isDirect()? allocateDirect(length) : ByteBuffer.allocate(length);
-        dst.put(src);
-        dst.order(order());
-        dst.clear();
-        return new UnpooledDirectByteBuf(alloc(), dst, maxCapacity());
+        return alloc().directBuffer(length, maxCapacity()).writeBytes(src);
     }
 
     @Override
