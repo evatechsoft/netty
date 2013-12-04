@@ -37,7 +37,6 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     protected PooledByteBuf(Recycler.Handle recyclerHandle, int maxCapacity) {
         super(maxCapacity);
         this.recyclerHandle = recyclerHandle;
-        enableLeakDetection();
     }
 
     void init(PoolChunk<T> chunk, long handle, int offset, int length, int maxLength) {
@@ -142,9 +141,7 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
             this.handle = -1;
             memory = null;
             chunk.arena.free(chunk, handle);
-            if (isRecyclable()) {
-                recycle();
-            }
+            recycle();
         }
     }
 

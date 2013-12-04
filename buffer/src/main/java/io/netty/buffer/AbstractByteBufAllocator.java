@@ -16,6 +16,7 @@
 
 package io.netty.buffer;
 
+import io.netty.util.ResourceLeak;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.StringUtil;
 
@@ -25,6 +26,15 @@ import io.netty.util.internal.StringUtil;
 public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
     private static final int DEFAULT_INITIAL_CAPACITY = 256;
     private static final int DEFAULT_MAX_COMPONENTS = 16;
+
+    protected static ByteBuf toLeakAwareBuffer(ByteBuf buf) {
+        ResourceLeak leak = AbstractByteBuf.leakDetector.open(buf);
+        if (leak == null) {
+            return buf;
+        } else {
+            return new LeakAwareByteBuf(buf, leak);
+        }
+    }
 
     private final boolean directByDefault;
     private final ByteBuf emptyBuf;

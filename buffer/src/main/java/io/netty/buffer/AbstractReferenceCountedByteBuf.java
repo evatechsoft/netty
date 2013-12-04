@@ -17,7 +17,6 @@
 package io.netty.buffer;
 
 import io.netty.util.IllegalReferenceCountException;
-import io.netty.util.ResourceLeak;
 import io.netty.util.internal.PlatformDependent;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -48,27 +47,9 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
 
     @SuppressWarnings("FieldMayBeFinal")
     private volatile int refCnt = 1;
-    private ResourceLeak leak;
 
     protected AbstractReferenceCountedByteBuf(int maxCapacity) {
         super(maxCapacity);
-    }
-
-    protected final void enableLeakDetection() {
-        assert leak == null;
-        leak = leakDetector.open(this);
-    }
-
-    protected final boolean isRecyclable() {
-        return leak == null;
-    }
-
-    @Override
-    protected final void ensureAccessible() {
-        super.ensureAccessible();
-        if (leak != null) {
-            leak.record();
-        }
     }
 
     @Override
@@ -136,9 +117,6 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
 
             if (refCntUpdater.compareAndSet(this, refCnt, refCnt - 1)) {
                 if (refCnt == 1) {
-                    if (leak != null) {
-                        leak.close();
-                    }
                     deallocate();
                     return true;
                 }
@@ -161,9 +139,6 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
 
             if (refCntUpdater.compareAndSet(this, refCnt, refCnt - decrement)) {
                 if (refCnt == decrement) {
-                    if (leak != null) {
-                        leak.close();
-                    }
                     deallocate();
                     return true;
                 }

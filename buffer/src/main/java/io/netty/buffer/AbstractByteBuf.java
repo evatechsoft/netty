@@ -1168,7 +1168,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
      * Should be called by every method that tries to access the buffers content to check
      * if the buffer was released before.
      */
-    protected void ensureAccessible() {
+    protected final void ensureAccessible() {
         if (refCnt() == 0) {
             throw new IllegalReferenceCountException(0);
         }

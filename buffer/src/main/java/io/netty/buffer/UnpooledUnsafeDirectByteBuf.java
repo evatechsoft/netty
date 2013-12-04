@@ -67,7 +67,6 @@ public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf
 
         this.alloc = alloc;
         setByteBuffer(allocateDirect(initialCapacity));
-        enableLeakDetection();
     }
 
     /**
@@ -100,7 +99,6 @@ public class UnpooledUnsafeDirectByteBuf extends AbstractReferenceCountedByteBuf
         doNotFree = true;
         setByteBuffer(initialBuffer.slice().order(ByteOrder.BIG_ENDIAN));
         writerIndex(initialCapacity);
-        enableLeakDetection();
     }
 
     /**
