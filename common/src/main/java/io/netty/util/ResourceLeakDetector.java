@@ -24,8 +24,12 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static io.netty.util.internal.StringUtil.NEWLINE;
 
 public final class ResourceLeakDetector<T> {
 
@@ -60,7 +64,7 @@ public final class ResourceLeakDetector<T> {
     private final DefaultResourceLeak tail = new DefaultResourceLeak(null);
 
     private final ReferenceQueue<Object> refQueue = new ReferenceQueue<Object>();
-    private final ConcurrentMap<Exception, Boolean> reportedLeaks = PlatformDependent.newConcurrentHashMap();
+    private final ConcurrentMap<String, Boolean> reportedLeaks = PlatformDependent.newConcurrentHashMap();
 
     private final String resourceType;
     private final int samplingInterval;
@@ -152,18 +156,20 @@ public final class ResourceLeakDetector<T> {
                 continue;
             }
 
-            if (reportedLeaks.putIfAbsent(ref.exception, Boolean.TRUE) == null) {
+            String records = ref.toString();
+            if (reportedLeaks.putIfAbsent(records, Boolean.TRUE) == null) {
                 logger.warn(
-                        "LEAK: " + resourceType + " was GC'd before being released correctly.  " +
-                        "The following stack trace shows where the leaked object was created, " +
-                        "rather than where you failed to release it.", ref.exception);
+                        "LEAK: {}.release() was not called before it is garbage-collected.{}", resourceType, records);
             }
         }
     }
 
     private final class DefaultResourceLeak extends PhantomReference<Object> implements ResourceLeak {
 
-        private final ResourceLeakException exception;
+        private static final int MAX_RECORDS = 4;
+
+        private String creationRecord;
+        private final Deque<String> lastRecords = new ArrayDeque<String>();
         private final AtomicBoolean freed;
         private DefaultResourceLeak prev;
         private DefaultResourceLeak next;
@@ -172,8 +178,7 @@ public final class ResourceLeakDetector<T> {
             super(referent, referent != null? refQueue : null);
 
             if (referent != null) {
-                exception = new ResourceLeakException(
-                        referent.getClass().getName() + '@' + Integer.toHexString(System.identityHashCode(referent)));
+                creationRecord = newRecord();
 
                 // TODO: Use CAS to update the list.
                 synchronized (head) {
@@ -185,8 +190,39 @@ public final class ResourceLeakDetector<T> {
                 }
                 freed = new AtomicBoolean();
             } else {
-                exception = null;
                 freed = new AtomicBoolean(true);
+            }
+        }
+
+        private String newRecord() {
+            StringBuilder buf = new StringBuilder(4096);
+            StackTraceElement[] array = new Throwable().getStackTrace();
+            int recordsToSkip = 3;
+            for (StackTraceElement e: array) {
+                if (recordsToSkip > 0) {
+                    recordsToSkip --;
+                } else {
+                    buf.append('\t');
+                    buf.append(e.toString());
+                    buf.append(NEWLINE);
+                }
+            }
+
+            return buf.toString();
+        }
+
+        @Override
+        public void record() {
+            String value = newRecord();
+
+            synchronized (lastRecords) {
+                int size = lastRecords.size();
+                if (size == 0 || !lastRecords.getLast().equals(value)) {
+                    lastRecords.add(value);
+                }
+                if (size > MAX_RECORDS) {
+                    lastRecords.removeFirst();
+                }
             }
         }
 
@@ -203,6 +239,34 @@ public final class ResourceLeakDetector<T> {
                 return true;
             }
             return false;
+        }
+
+        public String toString() {
+            StringBuilder buf = new StringBuilder(16384);
+            int lastRecordCount = lastRecords.size();
+
+            buf.append(NEWLINE);
+            buf.append("Recent access records: ");
+            buf.append(lastRecordCount);
+            buf.append(NEWLINE);
+
+            if (lastRecordCount > 0) {
+                String[] lastRecords = this.lastRecords.toArray(new String[lastRecordCount]);
+                for (int i = lastRecords.length - 1; i >= 0; i --) {
+                    buf.append('#');
+                    buf.append(i + 1);
+                    buf.append(':');
+                    buf.append(NEWLINE);
+                    buf.append(lastRecords[i]);
+                }
+            }
+
+            buf.append("Created at:");
+            buf.append(NEWLINE);
+            buf.append(creationRecord);
+            buf.setLength(buf.length() - NEWLINE.length());
+
+            return buf.toString();
         }
     }
 }

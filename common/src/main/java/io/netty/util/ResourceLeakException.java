@@ -18,7 +18,7 @@ package io.netty.util;
 
 import java.util.Arrays;
 
-public class ResourceLeakException extends RuntimeException {
+final class ResourceLeakException extends RuntimeException {
 
     private static final long serialVersionUID = 7186453858343358280L;
 
